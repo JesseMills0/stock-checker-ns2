@@ -24,7 +24,7 @@ stock. Sends notifications when items come back in stock via ntfy.
      `ntfy.server` as `https://ntfy.sh` unless you use another ntfy server.
    * Set `ntfy.token` only when your topic requires authentication.
    * Add one `products.yml` entry for each store listing. Supported providers
-     are `AMAZON`, `TARGET`, `BEST_BUY`, and `NINTENDO_STORE`.
+     are `AMAZON`, `TARGET`, `BEST_BUY`, `NINTENDO_STORE`, and `WALMART`.
    * Use the product URL path, not the full URL, in each product entry.
 5. `npm start`
    * `stock-checker` will check the stock of your defined products every 3 to

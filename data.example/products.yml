@@ -1,4 +1,4 @@
 # Add one entry per store listing for the product you want to monitor.
-# Supported providers: AMAZON, TARGET, BEST_BUY, NINTENDO_STORE.
+# Supported providers: AMAZON, TARGET, BEST_BUY, NINTENDO_STORE, WALMART.
 ---
 []

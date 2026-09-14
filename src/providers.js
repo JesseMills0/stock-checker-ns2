@@ -98,6 +98,37 @@ const parseNintendoProduct = (html) => {
   return errorStockCheckResult('Could not determine stock status for Nintendo Store');
 };
 
+const parseWalmartProduct = (html) => {
+  const root = parse(html);
+  const stockSections = root.querySelectorAll(
+    '[data-testid="add-to-cart-section"], [data-testid="ip-fulfillment-container-div"]'
+  );
+  const stockText = stockSections.map((section) => section.textContent).join(' ');
+
+  if (/out of stock|sold out|currently unavailable/i.test(stockText)) {
+    return outOfStockCheckResult();
+  }
+
+  return parseRetailProduct(
+    html,
+    {
+      available: [
+        'button[data-automation-id="add-to-cart"]:not([disabled])',
+        'button[data-testid="add-to-cart-button"]:not([disabled])',
+        'button[data-automation-id="preorder"]:not([disabled])',
+        'button[data-testid*="preorder"]:not([disabled])',
+      ],
+      unavailable: [
+        '[data-automation-id="out-of-stock"]',
+        '[data-testid="out-of-stock"]',
+        '[data-automation-id="sold-out"]',
+        '[data-testid="sold-out"]',
+      ],
+    },
+    'Walmart'
+  );
+};
+
 const PROVIDERS = {
   AMAZON: {
     name: 'Amazon',
@@ -118,6 +149,11 @@ const PROVIDERS = {
     name: 'Nintendo Store',
     baseUrl: 'https://www.nintendo.com/',
     parse: parseNintendoProduct,
+  },
+  WALMART: {
+    name: 'Walmart',
+    baseUrl: 'https://www.walmart.com/',
+    parse: parseWalmartProduct,
   },
 };
 

@@ -4,8 +4,8 @@ const { checkStock } = require('./check-stock');
 const { PROVIDERS, getProductUrl } = require('./providers');
 const { notifyRecipients } = require('./notification');
 
-const MIN_RECHECK_TIME = 3 * 60 * 1000;
-const MAX_RECHECK_TIME = 10 * 60 * 1000;
+const MIN_RECHECK_TIME = 2 * 60 * 1000;
+const MAX_RECHECK_TIME = 5 * 60 * 1000;
 
 async function displayStockStatus(stocks) {
   let inStockCount = 0;
