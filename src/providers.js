@@ -2,118 +2,122 @@ const { parse } = require('node-html-parser');
 
 const { errorStockCheckResult, outOfStockCheckResult, inStockCheckResult } = require('./utils');
 
+const parseRetailProduct = (html, selectors, providerName) => {
+  const root = parse(html);
+  const structuredData = root.querySelectorAll('script[type="application/ld+json"]');
+
+  for (const script of structuredData) {
+    try {
+      const data = JSON.parse(script.textContent);
+      const offers = Array.isArray(data) ? data.flatMap((item) => item.offers || []) : data.offers;
+      const availability = (Array.isArray(offers) ? offers : [offers])
+        .map((offer) => offer && offer.availability)
+        .find((value) => value !== undefined);
+
+      if (availability !== undefined) {
+        return /InStock|LimitedAvailability|PreOrder/i.test(availability)
+          ? inStockCheckResult()
+          : outOfStockCheckResult();
+      }
+    } catch (e) {
+      // Ignore malformed JSON-LD and continue with the page selectors.
+    }
+  }
+
+  const available = selectors.available.flatMap((selector) => root.querySelectorAll(selector));
+  if (available.length > 0) {
+    return inStockCheckResult();
+  }
+
+  const unavailable = selectors.unavailable.flatMap((selector) => root.querySelectorAll(selector));
+  if (unavailable.length > 0) {
+    return outOfStockCheckResult();
+  }
+
+  return errorStockCheckResult(`Could not determine stock status for ${providerName}`);
+};
+
+const parseAmazonProduct = (html) => {
+  const root = parse(html);
+  const availability = root.querySelector('#availability');
+  const availabilityText = availability ? availability.textContent : '';
+  const purchaseButton = root.querySelector('#buy-now-button');
+  const isPreorder = /pre-order|preorder/i.test(availabilityText);
+  const hasEnabledPurchaseButton =
+    purchaseButton && purchaseButton.getAttribute('disabled') === undefined;
+
+  if (/currently unavailable|not available|unavailable/i.test(availabilityText)) {
+    return outOfStockCheckResult();
+  }
+  if (isPreorder && hasEnabledPurchaseButton) {
+    return inStockCheckResult();
+  }
+
+  const addToCart = root.querySelector('#add-to-cart-button');
+  return addToCart && addToCart.getAttribute('disabled') === undefined
+    ? inStockCheckResult()
+    : errorStockCheckResult('Amazon purchase button missing');
+};
+
+const parseTargetProduct = (html) => {
+  const root = parse(html);
+  if (
+    root.querySelectorAll(
+      '[class*="notActiveAndUnavailableFulfillmentCell"], [data-test="soldOut"], [data-test="outOfStock"]'
+    ).length > 0
+  ) {
+    return outOfStockCheckResult();
+  }
+  if (
+    root.querySelectorAll(
+      'button[data-test="shippingButton"]:not([disabled]), button[data-test="addToCartButton"]:not([disabled])'
+    ).length > 0
+  ) {
+    return inStockCheckResult();
+  }
+  return errorStockCheckResult('Could not determine stock status for Target');
+};
+
+const parseBestBuyProduct = (html) => {
+  if (/["']buttonState["']\s*:\s*["'](?:SOLD_OUT|COMING_SOON|UNAVAILABLE)["']/i.test(html)) {
+    return outOfStockCheckResult();
+  }
+  if (/["']buttonState["']\s*:\s*["'](?:ADD_TO_CART|PREORDER|PRE_ORDER)["']/i.test(html)) {
+    return inStockCheckResult();
+  }
+  return errorStockCheckResult('Could not determine stock status for Best Buy');
+};
+
+const parseNintendoProduct = (html) => {
+  if (/schema\.org\/(?:OutOfStock|SoldOut)/i.test(html)) {
+    return outOfStockCheckResult();
+  }
+  if (/schema\.org\/(?:InStock|LimitedAvailability|PreOrder)/i.test(html)) {
+    return inStockCheckResult();
+  }
+  return errorStockCheckResult('Could not determine stock status for Nintendo Store');
+};
+
 const PROVIDERS = {
-  SCORPTEC: {
-    name: 'Scorptec',
-    baseUrl: 'https://www.scorptec.com.au/',
-    parse: (html) => {
-      const root = parse(html);
-      const addToCart = root.querySelectorAll('#price-addcart');
-      if (addToCart.length === 0) {
-        return errorStockCheckResult("'Add to cart' button missing");
-      }
-      if (addToCart.length > 1) {
-        return errorStockCheckResult("Multiple 'Add to cart' buttons found");
-      }
-      return addToCart[0].querySelectorAll('a').length === 0
-        ? outOfStockCheckResult()
-        : inStockCheckResult();
-    },
+  AMAZON: {
+    name: 'Amazon',
+    baseUrl: 'https://www.amazon.com/',
+    parse: parseAmazonProduct,
   },
-  MWAVE: {
-    name: 'Mwave',
-    baseUrl: 'https://www.mwave.com.au/',
-    parse: (html) => {
-      const root = parse(html);
-      const addToCart = root.querySelectorAll('.divAddCart .addToCarts');
-      if (addToCart.length === 0) {
-        return errorStockCheckResult("'Add to cart' section missing");
-      }
-      if (addToCart.length > 1) {
-        return errorStockCheckResult("Multiple 'Add to cart' sections found");
-      }
-      return addToCart[0].querySelectorAll('button').length === 0
-        ? outOfStockCheckResult()
-        : inStockCheckResult();
-    },
+  TARGET: {
+    name: 'Target',
+    baseUrl: 'https://www.target.com/',
+    parse: parseTargetProduct,
   },
-  PC_CASE_GEAR: {
-    name: 'PC Case Gear',
-    baseUrl: 'https://www.pccasegear.com/',
-    parse: (html) => {
-      const root = parse(html);
-      const addToCart = root.querySelectorAll('button.add-to-cart');
-      if (addToCart.length === 0) {
-        return errorStockCheckResult("'Add to cart' button missing");
-      }
-      if (addToCart.length > 1) {
-        return errorStockCheckResult("Multiple 'Add to cart' buttons found");
-      }
-      return addToCart[0].getAttribute('disabled') !== undefined
-        ? outOfStockCheckResult()
-        : inStockCheckResult();
-    },
+  BEST_BUY: {
+    name: 'Best Buy',
+    baseUrl: 'https://www.bestbuy.com/',
+    parse: parseBestBuyProduct,
   },
-  PLE: {
-    name: 'PLE Computers',
-    baseUrl: 'https://www.ple.com.au/',
-    parse: (html) => {
-      const root = parse(html);
-      const availabilityContainer = root.querySelectorAll('.availabilityContainerWrapper');
-      if (availabilityContainer.length === 0) {
-        return errorStockCheckResult('Availability container missing');
-      }
-      if (availabilityContainer.length > 1) {
-        return errorStockCheckResult('Multiple availability containers found');
-      }
-      if (availabilityContainer[0].querySelectorAll('.viewItemStoreAvailability').length === 0) {
-        return errorStockCheckResult('Availability information missing');
-      }
-      return availabilityContainer[0].querySelectorAll(
-        '.viewItemStoreAvailability:not(.viewItemDarkGrayText)'
-      ).length === 0
-        ? outOfStockCheckResult()
-        : inStockCheckResult();
-    },
-  },
-  UMART: {
-    name: 'Umart',
-    baseUrl: 'https://www.umart.com.au/',
-    parse: (html) => {
-      const root = parse(html);
-      const addToCartButton = root.querySelectorAll('form .goods_info .addtocart_btn:not(.lmn)');
-      if (addToCartButton.length > 1) {
-        return errorStockCheckResult("Multiple 'Add to cart' buttons found");
-      }
-      if (addToCartButton.length === 1) {
-        return inStockCheckResult();
-      }
-      const letMeKnowButton = root.querySelectorAll('form .goods_info .addtocart_btn.lmn');
-      if (letMeKnowButton.length > 1) {
-        return errorStockCheckResult("Multiple 'Let me know' buttons found");
-      }
-      if (letMeKnowButton.length === 1) {
-        return outOfStockCheckResult();
-      }
-      return errorStockCheckResult('Checkout buttons missing');
-    },
-  },
-  BPC_TECH: {
-    name: 'BPC Tech',
-    baseUrl: 'https://www.bpctech.com.au/',
-    parse: (html) => {
-      const root = parse(html);
-      const productStockStatus = root.querySelectorAll('.productStockStatus');
-      if (productStockStatus.length === 0) {
-        return errorStockCheckResult('Product stock status missing');
-      }
-      if (productStockStatus.length > 1) {
-        return errorStockCheckResult('Multiple product stock statuses found');
-      }
-      return productStockStatus[0].classList.contains('stockInBPCT')
-        ? inStockCheckResult()
-        : outOfStockCheckResult();
-    },
+  NINTENDO_STORE: {
+    name: 'Nintendo Store',
+    baseUrl: 'https://www.nintendo.com/',
+    parse: parseNintendoProduct,
   },
 };
 

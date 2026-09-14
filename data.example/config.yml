@@ -1,15 +1,12 @@
 # This file contains the global app configuration.
 ---
-twilio:
-  # The SID of the messaging service to send messages from.
-  serviceSid: ''
-  # The account SID of the Twilio project.
-  accountSid: ''
-  # The SID of the API key to authenticate with (auth tokens aren't supported
-  # yet).
-  apiKeySid: ''
-  # The API key secret.
-  apiKeySecret: ''
+ntfy:
+  # The ntfy server hosting your topic.
+  server: 'https://ntfy.sh'
+  # The topic to publish notifications to.
+  topic: ''
+  # Optional: needed only if the topic is access-controlled.
+  token: ''
 chrome:
   # Path to your Chrome executable.
   # e.g. C:\Program Files (x86)\Google\Chrome\Application\chrome.exe
