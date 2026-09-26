@@ -2,6 +2,9 @@
 Node.js service that periodically checks if products from online stores are in
 stock. Sends notifications when items come back in stock via ntfy.
 
+The only real differences between this and the original project are that I made it use ntfy instead of Twilo, and I chanded what products and retailers the program looks at. 
+At the moment, I have it looking at various stores for the Nintendo Switch 2 Legend of Zelda console so that I can maybe get one before the scalpers.
+
 ## Prerequisites
 * Node.js
 * npm
